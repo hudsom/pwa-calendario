@@ -1,25 +1,33 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 export const useOnlineStatus = () => {
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const [showOfflineMessage, setShowOfflineMessage] = useState(false)
+  const wasOfflineRef = useRef(false)
+  const timeoutRef = useRef(null)
 
   useEffect(() => {
     const handleOnline = () => {
       setIsOnline(true)
-      setShowOfflineMessage(false)
+      
+      // Só mostra mensagem de reconexão se realmente esteve offline
+      if (wasOfflineRef.current) {
+        setShowOfflineMessage(true)
+        timeoutRef.current = setTimeout(() => {
+          setShowOfflineMessage(false)
+        }, 3000)
+      }
+      wasOfflineRef.current = false
     }
 
     const handleOffline = () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current)
+        timeoutRef.current = null
+      }
       setIsOnline(false)
       setShowOfflineMessage(true)
-      
-      // Esconde a mensagem após 3 segundos quando volta online
-      setTimeout(() => {
-        if (navigator.onLine) {
-          setShowOfflineMessage(false)
-        }
-      }, 3000)
+      wasOfflineRef.current = true
     }
 
     const handleServiceWorkerMessage = (event) => {
@@ -37,6 +45,9 @@ export const useOnlineStatus = () => {
     }
 
     return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current)
+      }
       window.removeEventListener('online', handleOnline)
       window.removeEventListener('offline', handleOffline)
       if ('serviceWorker' in navigator) {

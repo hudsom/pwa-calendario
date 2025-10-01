@@ -33,22 +33,19 @@ function Login(){
             window.location.href = '/';
 
         } catch (err) {
+            console.log('Erro de login:', err.code, err.message);
             if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-email') {
-                setEmailError("Usuário inválido");
-                const emailInput = document.querySelector('input[type="email"]');
-                if (emailInput) {
-                    emailInput.setCustomValidity("Usuário inválido");
-                    emailInput.reportValidity();
-                }
-            } else if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
-                setPasswordError("Senha inválida");
-                const passwordInput = document.querySelector('input[type="password"]');
-                if (passwordInput) {
-                    passwordInput.setCustomValidity("Senha inválida");
-                    passwordInput.reportValidity();
-                }
+                setError("Usuário não encontrado. Verifique o email ou cadastre-se.");
+            } else if (err.code === 'auth/wrong-password') {
+                setError("Senha incorreta.");
+            } else if (err.code === 'auth/invalid-credential') {
+                setError("Email ou senha incorretos.");
+            } else if (err.code === 'auth/user-disabled') {
+                setError("Usuário desabilitado.");
+            } else if (err.code === 'auth/too-many-requests') {
+                setError("Muitas tentativas. Tente novamente mais tarde.");
             } else {
-                setError("Erro ao fazer login " + err.message);
+                setError("Erro ao fazer login: " + (err.message || 'Tente novamente'));
             }
         }
         setLoading(false);

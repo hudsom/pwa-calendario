@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "firebase/auth";
-import { getFirestore, collection, setDoc, doc, getDoc } from "firebase/firestore";
+import { getFirestore, collection, setDoc, doc, getDocs, query, where, updateDoc } from "firebase/firestore";
 
 const TASKS_COLLECTION = 'tasks'
 
@@ -21,7 +21,6 @@ export const auth = getAuth(app);
 
 export function login(email, senha){
     return signInWithEmailAndPassword(auth, email, senha);
-
 }
 
 export function register(email, senha){
@@ -37,8 +36,14 @@ export async function addTaskToFirebase(task) {
     await setDoc(ref, task);
 }
 
-export async function getTasksFromFirebase(){
+export async function updateTaskInFirebase(taskId, updates) {
+    const ref = doc(db, TASKS_COLLECTION, taskId);
+    await updateDoc(ref, updates);
+}
+
+export async function getTasksFromFirebase(userId){
     const ref = collection(db, TASKS_COLLECTION);
-    const snapshot = await getDocs(ref);
+    const q = query(ref, where('userId', '==', userId));
+    const snapshot = await getDocs(q);
     return snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id}));
 }

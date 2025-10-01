@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { v4 as uuidv4 } from "uuid"
-import { addTask, getTasks } from '../utils/db'
+import { addTask, getTasks, updateTask, syncPendingTasks } from '../utils/db'
 import { getUserLocation, copyTaskToClipboard, listenTaskByVoice } from '../utils/native'
 import { getGoogleCalendarUrl } from '../utils/calendar'
 import { Link } from 'react-router-dom';
@@ -19,6 +19,7 @@ function Home() {
   const [editingId, setEditingId] = useState(null);
   const [editTitle, setEditTitle] = useState("");
   const [editHora, setEditHora] = useState("");
+  const [adding, setAdding] = useState(false);
 
   const {
     offlineReady,
@@ -61,8 +62,18 @@ function Home() {
 
   useEffect(() => {
     loadTasks();
+    syncPendingTasks();
+    
+    const handleOnline = () => {
+      syncPendingTasks();
+      loadTasks();
+    };
+    
+    window.addEventListener('online', handleOnline);
     window.addEventListener('offline', loadTasks);
+    
     return () => {
+      window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', loadTasks);
     }
   }, [])
@@ -78,18 +89,15 @@ function Home() {
   }
 
   async function handleAdd() {
-    console.log('handleAdd')
+    if (adding) return;
     
-    if (!hora) {
-      alert('É obrigatório informar um horário para a tarefa!');
+    if (!title.trim()) {
+      alert('É obrigatório informar um título!');
       return;
     }
     
-    const now = new Date();
-    const currentTime = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
-    
-    if (hora < currentTime) {
-      alert('Não é possível incluir uma tarefa com horário no passado!');
+    if (!hora) {
+      alert('É obrigatório informar um horário!');
       return;
     }
     
@@ -98,52 +106,34 @@ function Home() {
       return;
     }
     
-    const location = await getUserLocation();
-    const task = {
-      id: uuidv4(),
-      title, 
-      hora,
-      done,
-      lastUpdated: Date.now(),
-      synced: false,
-      location,
-      userId: currentUser.uid
-    }
-    await addTask(task);
-    setTitle("")
-    setHora("")
-    setDone(false)
-    await loadTasks();
-
-    let notifyPromise = Promise.resolve();
-    if ("Notification" in window) {
-      if (Notification.permission === "granted") {
-        new Notification("Nova tarefa criada", {
-          body: `Tarefa: ${task.title}`,
-          icon: "/vite.svg"
-        });
-        notifyPromise = new Promise(res => setTimeout(res, 350));
-      } else if (Notification.permission !== "denied") {
-        notifyPromise = Notification.requestPermission().then(permission => {
-          if (permission === "granted") {
-            new Notification("Nova tarefa criada", {
-              body: `Tarefa: ${task.title}`,
-              icon: "/vite.svg"
-            });
-            return new Promise(res => setTimeout(res, 350));
-          }
-        });
+    setAdding(true);
+    try {
+      const location = await getUserLocation();
+      const task = {
+        id: uuidv4(),
+        title: title.trim(), 
+        hora,
+        done: false,
+        lastUpdated: Date.now(),
+        synced: false,
+        location,
+        userId: currentUser.uid
       }
-    }
-
-    if (navigator.onLine) {
-      await notifyPromise;
+      
+      await addTask(task);
+      setTitle("");
+      setHora("");
+      await loadTasks();
+    } catch (error) {
+      console.error('Erro ao adicionar tarefa:', error);
+      alert('Erro ao adicionar tarefa');
+    } finally {
+      setAdding(false);
     }
   }
 
   async function loadTasks() {
-    const allTasks = await getTasks();
-    const userTasks = allTasks.filter(task => task.userId === currentUser.uid);
+    const userTasks = await getTasks(currentUser.uid);
     userTasks.sort((a, b) => {
       if (!a.hora && !b.hora) return 0;
       if (!a.hora) return 1;
@@ -193,10 +183,8 @@ function Home() {
       return;
     }
     
-    const updatedTasks = tasks.map(t => 
-      t.id === editingId ? { ...t, title: editTitle, hora: editHora } : t
-    );
-    setTasks(updatedTasks);
+    await updateTask(editingId, { title: editTitle, hora: editHora });
+    await loadTasks();
     setEditingId(null);
     setEditTitle("");
     setEditHora("");
@@ -221,48 +209,14 @@ function Home() {
       }
     }
     
-    const updatedTasks = tasks.map(t => 
-      t.id === taskId ? { ...t, done: !t.done } : t
-    );
-    setTasks(updatedTasks);
+    await updateTask(taskId, { done: !task.done });
+    await loadTasks();
   }
   
   return (
     <div className="main-container">
       <div className="screen-container">
       <OfflineIndicator />
-      {needRefresh && (
-        <div style={{ 
-          position: 'fixed', 
-          top: '60px', 
-          left: '0', 
-          right: '0', 
-          background: '#646cff', 
-          color: 'white', 
-          padding: '12px', 
-          textAlign: 'center', 
-          zIndex: 9998 
-        }}>
-          <span>Nova versão disponível! </span>
-          <button 
-            onClick={() => {
-              updateServiceWorker(true);
-              window.location.reload();
-            }}
-            style={{ 
-              background: 'white', 
-              color: '#646cff', 
-              border: 'none', 
-              borderRadius: '4px', 
-              padding: '4px 8px', 
-              marginLeft: '8px',
-              cursor: 'pointer'
-            }}
-          >
-            Atualizar
-          </button>
-        </div>
-      )}
       <div style={{ display: 'flex', gap: '8px', marginBottom: 16 }}>
         <Link to="/dashboard" style={{ flex: 1 }}>
           <button style={{ background: '#1976d2', color: 'white', border: 'none', borderRadius: '8px', padding: '8px 16px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', textDecoration: 'none', width: '100%' }}>Ir para o dashboard</button>
@@ -289,27 +243,29 @@ function Home() {
           onChange={(e) => setHora(e.target.value)}
           style={{ marginBottom: 20, display: 'block', width: '100%', padding: '8px', fontSize: '14px', direction: 'rtl' }}
         />
-        <button onClick={handleAdd} className="styled-input" style={{ background: '#10b981', color: '#fff', fontWeight: 'bold', width: '100%' }}>Adicionar Tarefa</button>
+        <button 
+          onClick={handleAdd} 
+          disabled={adding}
+          className="styled-input" 
+          style={{ 
+            background: adding ? '#6b7280' : '#10b981', 
+            color: '#fff', 
+            fontWeight: 'bold', 
+            width: '100%',
+            cursor: adding ? 'not-allowed' : 'pointer'
+          }}
+        >
+          {adding ? 'Adicionando...' : 'Adicionar Tarefa'}
+        </button>
         <div style={{ marginTop: '10px' }}></div>
         <button onClick={handleVoiceAdd} className="styled-input" style={{ background: '#ff9800', color: '#fff', fontWeight: 'bold', width: '100%' }}>Adicionar Tarefa por voz</button>
       </div>
       <ul className="task-list" style={{ listStyle: 'none', padding: 0 }}>
         {tasks.map(t =>(
           <li className="task-card" key={t.id} style={{ position: 'relative', backgroundColor: t.done ? 'rgba(200, 210, 220, 0.8)' : undefined }}>
-            <span 
-              style={{ 
-                display: 'inline-block',
-                width: '10px', 
-                height: '10px', 
-                borderRadius: '50%', 
-                backgroundColor: t.synced ? '#10b981' : '#ffd600',
-                cursor: 'pointer',
-                float: 'right',
-                marginTop: '-6px',
-                marginRight: '4px'
-              }}
-              title={t.synced ? 'Sincronizada' : 'Não sincronizada'}
-            ></span>
+            <div style={{ fontSize: '11px', color: t.synced ? '#10b981' : '#ffd600', textAlign: 'right', marginBottom: '4px' }}>
+              {t.synced ? 'Sincronizada' : 'Não sincronizada'}
+            </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
               <span style={{ fontWeight: 'bold', color: 'white', textDecoration: t.done ? 'line-through' : 'none' }}>{t.title}</span>
               <span style={{ fontWeight: 'normal', color: 'white', textDecoration: t.done ? 'line-through' : 'none', paddingRight: '20px' }}>{t.hora || ""}</span>
