@@ -2,13 +2,10 @@ import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching'
 import { registerRoute } from 'workbox-routing'
 import { NetworkFirst, CacheFirst, StaleWhileRevalidate } from 'workbox-strategies'
 
-// Limpa caches antigos
 cleanupOutdatedCaches()
 
-// Precache dos recursos gerados pelo Vite
 precacheAndRoute(self.__WB_MANIFEST)
 
-// Estratégias de cache customizadas
 registerRoute(
   ({ request }) => request.destination === 'document',
   new NetworkFirst({
@@ -38,14 +35,12 @@ registerRoute(
   })
 )
 
-// Eventos customizados
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting()
   }
 })
 
-// Notificação de status online/offline
 self.addEventListener('online', () => {
   self.clients.matchAll().then(clients => {
     clients.forEach(client => {
@@ -54,7 +49,6 @@ self.addEventListener('online', () => {
   })
 })
 
-// Background Sync para tarefas
 self.addEventListener('sync', (event) => {
   if (event.tag === 'sync-tasks') {
     event.waitUntil(syncTasks())
@@ -63,7 +57,6 @@ self.addEventListener('sync', (event) => {
 
 async function syncTasks() {
   try {
-    // Implementar sincronização de tarefas quando voltar online
     const clients = await self.clients.matchAll()
     clients.forEach(client => {
       client.postMessage({ type: 'sync-tasks' })

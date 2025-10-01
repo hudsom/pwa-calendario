@@ -1,143 +1,371 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { v4 as uuidv4 } from "uuid"
+import { addTask, getTasks } from '../utils/db'
+import { getUserLocation, copyTaskToClipboard, listenTaskByVoice } from '../utils/native'
+import { getGoogleCalendarUrl } from '../utils/calendar'
+import { Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext'
+import { syncTasks } from '../utils/sync'
+import OfflineIndicator from '../componentes/OfflineIndicator'
+import { useRegisterSW } from 'virtual:pwa-register/react'
 import '../App.css'
 
-function Home({ tasks, setTasks }) {
-  const [newTask, setNewTask] = useState({ title: '', time: '', completed: false })
-  const [editingTask, setEditingTask] = useState(null)
+function Home() {
+  const { currentUser, logout } = useAuth();
+  const [tasks, setTasks] = useState([]);
+  const [title, setTitle] = useState("");
+  const [hora, setHora] = useState("");
+  const [done, setDone] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editHora, setEditHora] = useState("");
 
-  const addTask = () => {
-    if (!newTask.title) {
-      alert('Por favor, insira o título da tarefa!')
-      return
+  const {
+    offlineReady,
+    needRefresh,
+    updateServiceWorker,
+  } = useRegisterSW({
+    onRegistered(r) {
+      console.log('SW registrado: ' + r)
+    },
+    onRegisterError(error) {
+      console.log('Erro no registro do SW', error)
+    },
+  })
+
+  useEffect(() => {
+    if (!currentUser) {
+      window.location.href = '/login';
+      return;
     }
-    if (!newTask.time) {
-      alert('Por favor, selecione o horário da tarefa!')
-      return
+  }, [currentUser]);
+
+  function updateAppBadge(pendingCount) {
+    if ('setAppBadge' in navigator) {
+      navigator.setAppBadge(pendingCount);
+    } else if ('setExperimentalAppBadge' in navigator) {
+      navigator.setExperimentalAppBadge(pendingCount);
+    }
+  }
+
+  async function handleLogout() {
+    try {
+      await logout();
+      localStorage.clear();
+      sessionStorage.clear();
+      window.location.href = '/login';
+    } catch (err) {
+      console.error("Erro ao fazer logout " + err);
+    }
+  }
+
+  useEffect(() => {
+    loadTasks();
+    window.addEventListener('offline', loadTasks);
+    return () => {
+      window.removeEventListener('offline', loadTasks);
+    }
+  }, [])
+
+  useEffect(() => {
+    const pending = tasks.filter(t => !t.done).length;
+    updateAppBadge(pending);
+  }, [tasks]);
+
+  async function syncAndReload() {
+    await syncTasks();
+    await loadTasks();
+  }
+
+  async function handleAdd() {
+    console.log('handleAdd')
+    
+    if (!hora) {
+      alert('É obrigatório informar um horário para a tarefa!');
+      return;
     }
     
-    const now = new Date()
-    const taskTime = new Date()
-    const [hours, minutes] = newTask.time.split(':')
-    taskTime.setHours(parseInt(hours), parseInt(minutes), 0, 0)
+    const now = new Date();
+    const currentTime = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
     
-    if (taskTime < now) {
-      alert('Não é possível adicionar tarefas para horários anteriores!')
-      return
+    if (hora < currentTime) {
+      alert('Não é possível incluir uma tarefa com horário no passado!');
+      return;
     }
     
-    const existingTask = tasks.find(task => task.time === newTask.time)
-    if (existingTask) {
-      const proceed = confirm(`Já existe uma tarefa no horário ${newTask.time}: "${existingTask.title}". Deseja prosseguir mesmo assim?`)
-      if (!proceed) {
-        return
+    if (tasks.some(t => t.hora === hora)) {
+      alert('Já existe uma tarefa para este horário!');
+      return;
+    }
+    
+    const location = await getUserLocation();
+    const task = {
+      id: uuidv4(),
+      title, 
+      hora,
+      done,
+      lastUpdated: Date.now(),
+      synced: false,
+      location
+    }
+    await addTask(task);
+    setTitle("")
+    setHora("")
+    setDone(false)
+    await loadTasks();
+
+    let notifyPromise = Promise.resolve();
+    if ("Notification" in window) {
+      if (Notification.permission === "granted") {
+        new Notification("Nova tarefa criada", {
+          body: `Tarefa: ${task.title}`,
+          icon: "/vite.svg"
+        });
+        notifyPromise = new Promise(res => setTimeout(res, 350));
+      } else if (Notification.permission !== "denied") {
+        notifyPromise = Notification.requestPermission().then(permission => {
+          if (permission === "granted") {
+            new Notification("Nova tarefa criada", {
+              body: `Tarefa: ${task.title}`,
+              icon: "/vite.svg"
+            });
+            return new Promise(res => setTimeout(res, 350));
+          }
+        });
+      }
+    }
+
+    if (navigator.onLine) {
+      await notifyPromise;
+    }
+  }
+
+  async function loadTasks() {
+    const allTasks = await getTasks();
+    allTasks.sort((a, b) => {
+      if (!a.hora && !b.hora) return 0;
+      if (!a.hora) return 1;
+      if (!b.hora) return -1;
+      return a.hora.localeCompare(b.hora);
+    });
+    setTasks(allTasks);
+  }
+
+  function handleVoiceAdd() {
+    listenTaskByVoice(
+      (transcript) => {
+        setTitle(transcript);
+        setTimeout(() => {
+          const el = document.querySelector('input.styled-input');
+          if (el) el.focus();
+        }, 100);
+      },
+      (err) => {
+        alert('Erro no reconhecimento de voz: ' + err);
+      }
+    );
+  }
+
+  function startEdit(task) {
+    setEditingId(task.id);
+    setEditTitle(task.title);
+    setEditHora(task.hora);
+  }
+
+  async function saveEdit() {
+    if (!editHora) {
+      alert('É obrigatório informar um horário para a tarefa!');
+      return;
+    }
+    
+    const now = new Date();
+    const currentTime = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+    
+    if (editHora < currentTime) {
+      alert('Não é possível incluir uma tarefa com horário no passado!');
+      return;
+    }
+    
+    if (tasks.some(t => t.hora === editHora && t.id !== editingId)) {
+      alert('Já existe uma tarefa para este horário!');
+      return;
+    }
+    
+    const updatedTasks = tasks.map(t => 
+      t.id === editingId ? { ...t, title: editTitle, hora: editHora } : t
+    );
+    setTasks(updatedTasks);
+    setEditingId(null);
+    setEditTitle("");
+    setEditHora("");
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setEditTitle("");
+    setEditHora("");
+  }
+
+  async function toggleTaskStatus(taskId) {
+    const task = tasks.find(t => t.id === taskId);
+    
+    if (task.done && task.hora) {
+      const now = new Date();
+      const currentTime = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+      
+      if (task.hora < currentTime) {
+        const proceed = confirm('Esta tarefa tem horário no passado. Deseja prosseguir mesmo assim?');
+        if (!proceed) return;
       }
     }
     
-    setTasks([...tasks, { ...newTask, id: Date.now() }])
-    setNewTask({ title: '', time: '', completed: false })
+    const updatedTasks = tasks.map(t => 
+      t.id === taskId ? { ...t, done: !t.done } : t
+    );
+    setTasks(updatedTasks);
   }
-
-  const toggleTask = (id) => {
-    setTasks(tasks.map(task => 
-      task.id === id ? { ...task, completed: !task.completed } : task
-    ))
-  }
-
-  const editTask = (task) => {
-    setEditingTask(task)
-  }
-
-  const saveTask = () => {
-    setTasks(tasks.map(task => 
-      task.id === editingTask.id ? editingTask : task
-    ))
-    setEditingTask(null)
-  }
-
+  
   return (
-    <div className="screen-container">
-            <div style={{ marginBottom: 16, textAlign: 'right' }}>
-                <span style={{ marginRight: 15 }}>Usuário logado: {currentUser?.email}</span>
-            </div>
-
-      <div className="screen-header">
-        <h1 className="screen-title">Minhas Tarefas</h1>ßß
-      </div>
-
-      <div className="form-container">
-        <div className="form-group">
-          <input
-            type="text"
-            placeholder="Título da tarefa"
-            value={newTask.title}
-            onChange={(e) => setNewTask({...newTask, title: e.target.value})}
-            className="form-input"
-          />
+    <div className="main-container">
+      <div className="screen-container">
+      <OfflineIndicator />
+      {needRefresh && (
+        <div style={{ 
+          position: 'fixed', 
+          top: '60px', 
+          left: '0', 
+          right: '0', 
+          background: '#646cff', 
+          color: 'white', 
+          padding: '12px', 
+          textAlign: 'center', 
+          zIndex: 9998 
+        }}>
+          <span>Nova versão disponível! </span>
+          <button 
+            onClick={() => {
+              updateServiceWorker(true);
+              window.location.reload();
+            }}
+            style={{ 
+              background: 'white', 
+              color: '#646cff', 
+              border: 'none', 
+              borderRadius: '4px', 
+              padding: '4px 8px', 
+              marginLeft: '8px',
+              cursor: 'pointer'
+            }}
+          >
+            Atualizar
+          </button>
         </div>
-        <div className="form-group">
-          <input
-            type="time"
-            value={newTask.time}
-            onChange={(e) => setNewTask({...newTask, time: e.target.value})}
-            className="form-input"
-          />
-        </div>
-        <button onClick={addTask} className="form-button">
-          Adicionar Tarefa
-        </button>
+      )}
+      <div style={{ display: 'flex', gap: '8px', marginBottom: 16 }}>
+        <Link to="/dashboard" style={{ flex: 1 }}>
+          <button style={{ background: '#1976d2', color: 'white', border: 'none', borderRadius: '8px', padding: '8px 16px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', textDecoration: 'none', width: '100%' }}>Ir para o dashboard</button>
+        </Link>
+        <button onClick={handleLogout} style={{ background: '#ef4444', color: 'white', border: 'none', borderRadius: '8px', padding: '8px 16px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>Logout</button>
       </div>
-      
-      <div className="content-section">
-        <h2 className="section-title">Tarefas do Dia</h2>
-        {tasks.length === 0 ? (
-          <div className="empty-state">
-            <div className="empty-icon">📝</div>
-            <div className="empty-text">Nenhuma tarefa adicionada</div>
-          </div>
-        ) : (
-          tasks.sort((a, b) => a.time.localeCompare(b.time)).map(task => (
-            <div key={task.id} className={`task-card ${task.completed ? 'completed' : ''}`}>
-              {editingTask && editingTask.id === task.id ? (
-                <div className="edit-form">
-                  <input
-                    type="text"
-                    value={editingTask.title}
-                    onChange={(e) => setEditingTask({...editingTask, title: e.target.value})}
-                    className="form-input"
-                  />
-                  <input
-                    type="time"
-                    value={editingTask.time}
-                    onChange={(e) => setEditingTask({...editingTask, time: e.target.value})}
-                    className="form-input"
-                  />
-                  <div className="edit-buttons">
-                    <button onClick={saveTask} className="btn-save">Salvar</button>
-                    <button onClick={() => setEditingTask(null)} className="btn-cancel">Cancelar</button>
-                  </div>
-                </div>
-              ) : (
-                <div className="task-content">
-                  <div className="task-info">
-                    <div className="task-time">{task.time}</div>
-                    <div className="task-title">{task.title}</div>
-                  </div>
-                  <div className="task-actions">
-                    <button onClick={() => editTask(task)} className="btn-small btn-edit">
-                      Editar
-                    </button>
-                    <button 
-                      onClick={() => toggleTask(task.id)} 
-                      className={`btn-small ${task.completed ? 'btn-undo' : 'btn-complete'}`}
-                    >
-                      {task.completed ? 'Desfazer' : 'Concluir'}
-                    </button>
-                  </div>
-                </div>
-              )}
+      <div style={{ marginBottom: 16, textAlign: 'center' }}>
+        <span>Usuário logado: {currentUser?.email}</span>
+      </div>
+      <h1 style={{ textAlign: 'center', marginBottom: 24 }}>Minhas tarefas</h1>
+      <div className="task-card" style={{ marginBottom: 20 }}>
+        <h3 style={{ marginBottom: 15, color: 'white' }}>Nova Tarefa</h3>
+        <input
+          className="styled-input"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="Título da tarefa"
+          style={{ marginBottom: 15, display: 'block', width: '100%', padding: '8px', fontSize: '14px' }}
+        />
+        <input
+          className="styled-input"
+          type="time"
+          value={hora}
+          onChange={(e) => setHora(e.target.value)}
+          style={{ marginBottom: 20, display: 'block', width: '100%', padding: '8px', fontSize: '14px', direction: 'rtl' }}
+        />
+        <button onClick={handleAdd} className="styled-input" style={{ background: '#70ec85', color: '#213547', fontWeight: 'bold', width: '100%' }}>Adicionar Tarefa</button>
+        <div style={{ marginTop: '10px' }}></div>
+        <button onClick={handleVoiceAdd} className="styled-input" style={{ background: '#ff9800', color: '#fff', fontWeight: 'bold', width: '100%' }}>Adicionar Tarefa por voz</button>
+      </div>
+      <ul className="task-list" style={{ listStyle: 'none', padding: 0 }}>
+        {tasks.map(t =>(
+          <li className="task-card" key={t.id} style={{ position: 'relative', backgroundColor: t.done ? 'rgba(200, 210, 220, 0.8)' : undefined }}>
+            <span 
+              style={{ 
+                display: 'inline-block',
+                width: '10px', 
+                height: '10px', 
+                borderRadius: '50%', 
+                backgroundColor: t.synced ? '#10b981' : '#ffd600',
+                cursor: 'pointer',
+                float: 'right',
+                marginTop: '-6px',
+                marginRight: '4px'
+              }}
+              title={t.synced ? 'Sincronizada' : 'Não sincronizada'}
+            ></span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+              <span style={{ fontWeight: 'bold', color: 'white', textDecoration: t.done ? 'line-through' : 'none' }}>{t.title}</span>
+              <span style={{ fontWeight: 'normal', color: 'white', textDecoration: t.done ? 'line-through' : 'none', paddingRight: '20px' }}>{t.hora || ""}</span>
             </div>
-          ))
-        )}
+            {t.location && (
+              <div style={{ color: '#2196f3', fontSize: '0.9em', marginTop: 4, display: 'flex', justifyContent: 'space-between' }}>
+                <span><strong>Lat/Long:</strong></span>
+                <span>{t.location.lat?.toFixed(5)}, {t.location.lng?.toFixed(5)}</span>
+              </div>
+            )}
+            {editingId === t.id ? (
+              <div>
+                <input
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  style={{ width: '100%', padding: '8px', marginBottom: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
+                />
+                <input
+                  type="time"
+                  value={editHora}
+                  onChange={(e) => setEditHora(e.target.value)}
+                  style={{ width: '100%', padding: '8px', marginBottom: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
+                />
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button onClick={saveEdit} style={{ fontSize: '0.9em', background: '#10b981', color: '#fff', border: 'none', borderRadius: 4, padding: '6px 12px', cursor: 'pointer', flex: 1 }}>Salvar</button>
+                  <button onClick={cancelEdit} style={{ fontSize: '0.9em', background: '#ef4444', color: '#fff', border: 'none', borderRadius: 4, padding: '6px 12px', cursor: 'pointer', flex: 1 }}>Cancelar</button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', gap: '8px', marginTop: 8 }}>
+                <button 
+                  onClick={() => startEdit(t)} 
+                  disabled={t.done}
+                  style={{ 
+                    fontSize: '0.9em', 
+                    background: t.done ? '#ccc' : '#f59e0b', 
+                    color: '#fff', 
+                    border: 'none', 
+                    borderRadius: 4, 
+                    padding: '6px 12px', 
+                    cursor: t.done ? 'not-allowed' : 'pointer', 
+                    flex: 1 
+                  }}
+                >
+                  Editar
+                </button>
+                <button 
+                  onClick={() => toggleTaskStatus(t.id)}
+                  style={{ fontSize: '0.9em', background: t.done ? '#f59e0b' : '#10b981', color: '#fff', border: 'none', borderRadius: 4, padding: '6px 12px', cursor: 'pointer', flex: 1 }}
+                >
+                  {t.done ? 'Desfazer' : 'Concluir'}
+                </button>
+              </div>
+            )}
+          </li>
+        ))}
+
+      </ul>
       </div>
     </div>
   )

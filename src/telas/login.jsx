@@ -1,29 +1,77 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { login } from '../utils/firebase'
 import { Link } from "react-router-dom"
 import OfflineIndicator from "../componentes/OfflineIndicator"
 import { useOnlineStatus } from '../hooks/useOnlineStatus'
+import { useAuth } from '../context/AuthContext'
 
 function Login(){
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
+    const [emailError, setEmailError] = useState("");
+    const [passwordError, setPasswordError] = useState("");
     const { isOnline } = useOnlineStatus();
+    const { currentUser } = useAuth();
+
+    useEffect(() => {
+        if (currentUser) {
+            window.location.href = '/';
+        }
+    }, [currentUser]);
 
     async function handleLogin(e) {
         e.preventDefault();
         setLoading(true);
         setError("");
+        setEmailError("");
+        setPasswordError("");
 
         try {
             await login(email, password);
             window.location.href = '/';
 
         } catch (err) {
-            setError("Erro ao fazer login " + err.message);
+            if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-email') {
+                setEmailError("Usuário inválido");
+                const emailInput = document.querySelector('input[type="email"]');
+                if (emailInput) {
+                    emailInput.setCustomValidity("Usuário inválido");
+                    emailInput.reportValidity();
+                }
+            } else if (err.code === 'auth/wrong-password') {
+                setPasswordError("Senha inválida");
+                const passwordInput = document.querySelector('input[type="password"]');
+                if (passwordInput) {
+                    passwordInput.setCustomValidity("Senha inválida");
+                    passwordInput.reportValidity();
+                }
+            } else if (err.code === 'auth/invalid-credential') {
+                // Para invalid-credential, priorizar erro de usuário
+                setEmailError("Usuário inválido");
+                const emailInput = document.querySelector('input[type="email"]');
+                if (emailInput) {
+                    emailInput.setCustomValidity("Usuário inválido");
+                    emailInput.reportValidity();
+                }
+            } else {
+                setError("Erro ao fazer login " + err.message);
+            }
         }
         setLoading(false);
+    }
+
+    function handleEmailChange(e) {
+        setEmail(e.target.value);
+        setEmailError("");
+        e.target.setCustomValidity("");
+    }
+
+    function handlePasswordChange(e) {
+        setPassword(e.target.value);
+        setPasswordError("");
+        e.target.setCustomValidity("");
     }
 
     return (
@@ -41,7 +89,7 @@ function Login(){
                                 type="email"
                                 placeholder="Email"
                                 value={email}
-                                onChange={(e) => setEmail(e.target.value)}
+                                onChange={handleEmailChange}
                                 required
                             />
                         </div>
@@ -51,7 +99,7 @@ function Login(){
                                 type="password"
                                 placeholder="Senha"
                                 value={password}
-                                onChange={(e) => setPassword(e.target.value)}
+                                onChange={handlePasswordChange}
                                 required
                             />
                         </div>

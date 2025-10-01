@@ -6,7 +6,7 @@ export async function syncTasks() {
     const unsyncedTasks = tasks.filter(task => !task.synced);
     let syncedCount = 0;
 
-    for (const task of unsyncedTasks) { // Corrigido: tastk -> task
+    for (const task of unsyncedTasks) {
         try {
             await addTaskToFirebase(task);
             task.synced = true;

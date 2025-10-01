@@ -22,7 +22,7 @@ export function AuthProvider({ children }) {
   }, []);
 
   const logout = () => {
-    return signOut(auth);
+    return firebaseSignOut(auth);
   };
 
   const value = {

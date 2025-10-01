@@ -22,12 +22,19 @@ function Dashboard() {
     async function handleLogout() {
         try {
             await logout();
+            localStorage.clear();
+            sessionStorage.clear();
+            window.location.href = '/login';
         } catch (error) {
             console.error("Erro ao fazer logout: " + error);
         }
     }
     
     useEffect(() => {
+        if (!currentUser) {
+            window.location.href = '/login';
+            return;
+        }
         async function fetchTasks() {
             const allTasks = await getTasks();
             setTasks(allTasks);
@@ -35,14 +42,14 @@ function Dashboard() {
             setCompletedTasks(filtered);
         }
         fetchTasks();
-    }, [])
+    }, [currentUser])
 
     return(
         <div className="main-container">
             <OfflineIndicator />
             <div className="screen-container">
             <div style={{ display: 'flex', gap: '8px', marginBottom: 16 }}>
-                <Link to="/" style={{ flex: 1 }}>
+                <Link to="/home" style={{ flex: 1 }}>
                     <button style={{ background: '#1976d2', color: 'white', border: 'none', borderRadius: '8px', padding: '8px 16px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', textDecoration: 'none', width: '100%' }}>Voltar para Home</button>
                 </Link>
                 <button onClick={handleLogout} style={{ background: '#ef4444', color: 'white', border: 'none', borderRadius: '8px', padding: '8px 16px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>Logout</button>

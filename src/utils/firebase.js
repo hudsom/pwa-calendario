@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "firebase/auth";
 import { getFirestore, collection, setDoc, doc, getDoc } from "firebase/firestore";
 
 const TASKS_COLLECTION = 'tasks'
@@ -26,6 +26,10 @@ export function login(email, senha){
 
 export function register(email, senha){
     return createUserWithEmailAndPassword(auth, email, senha);
+}
+
+export function logout(){
+    return signOut(auth);
 }
 
 export async function addTaskToFirebase(task) {
