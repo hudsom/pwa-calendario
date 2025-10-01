@@ -20,18 +20,15 @@ export async function initDB() {
 
 export async function addTask(task) {
     try {
-        // Salvar tarefa localmente
         const db = await initDB();
         const tx = db.transaction(STORE_NAME, 'readwrite');
         const store = tx.objectStore(STORE_NAME);
         await store.put(task);
         await tx.done;
         
-        // Se online, sincronizar e atualizar status
         if (navigator.onLine) {
             try {
                 await addTaskToFirebase(task);
-                // Buscar tarefa do banco e atualizar
                 const db2 = await initDB();
                 const tx2 = db2.transaction(STORE_NAME, 'readwrite');
                 const store2 = tx2.objectStore(STORE_NAME);
@@ -53,24 +50,21 @@ export async function addTask(task) {
     }
 }
 
-export async function getTasks(userId) {
+export async function getTasks(userId, skipFirebaseSync = false) {
     try {
-        // Sempre buscar do IndexedDB local primeiro
         const db = await initDB();
         const tx = db.transaction(STORE_NAME, 'readonly');
         const store = tx.objectStore(STORE_NAME);
         const localTasks = await store.getAll();
         await tx.done;
         
-        // Se online, buscar do Firebase para sincronizar tarefas que podem ter vindo de outros dispositivos
-        if (navigator.onLine && userId) {
+        if (navigator.onLine && userId && !skipFirebaseSync) {
             try {
                 const firebaseTasks = await getTasksFromFirebase(userId);
                 const db2 = await initDB();
                 const tx2 = db2.transaction(STORE_NAME, 'readwrite');
                 const store2 = tx2.objectStore(STORE_NAME);
                 
-                // Adicionar tarefas do Firebase que não existem localmente
                 for (const fbTask of firebaseTasks) {
                     const existsLocal = localTasks.find(t => t.id === fbTask.id);
                     if (!existsLocal) {
@@ -105,11 +99,9 @@ export async function updateTask(taskId, updates) {
             await store.put(updatedTask);
             await tx.done;
             
-            // Tentar sincronizar com Firebase
             if (navigator.onLine) {
                 try {
                     await updateTaskInFirebase(taskId, updatedTask);
-                    // Nova transação para marcar como sincronizado
                     const db2 = await initDB();
                     const tx2 = db2.transaction(STORE_NAME, 'readwrite');
                     const store2 = tx2.objectStore(STORE_NAME);
@@ -124,6 +116,28 @@ export async function updateTask(taskId, updates) {
         }
     } catch (error) {
         console.error('Erro ao atualizar tarefa:', error);
+        throw error;
+    }
+}
+
+export async function deleteTask(taskId) {
+    try {
+        const db = await initDB();
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        const store = tx.objectStore(STORE_NAME);
+        await store.delete(taskId);
+        await tx.done;
+        
+        if (navigator.onLine) {
+            try {
+                const { deleteTaskFromFirebase } = await import('./firebase');
+                await deleteTaskFromFirebase(taskId);
+            } catch (error) {
+                console.warn('Falha ao excluir do Firebase:', error);
+            }
+        }
+    } catch (error) {
+        console.error('Erro ao excluir tarefa:', error);
         throw error;
     }
 }

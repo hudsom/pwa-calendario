@@ -10,7 +10,6 @@ export const useOnlineStatus = () => {
     const handleOnline = () => {
       setIsOnline(true)
       
-      // Só mostra mensagem de reconexão se realmente esteve offline
       if (wasOfflineRef.current) {
         setShowOfflineMessage(true)
         timeoutRef.current = setTimeout(() => {

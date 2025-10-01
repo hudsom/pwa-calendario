@@ -22,7 +22,7 @@ export async function syncTasks() {
         if (Notification.permission === 'granted') {
             new Notification('Sincronização de tarefas', {
                 body: `${syncedCount} tarefas sincronizadas com sucesso.`,
-                icon: '/vite.svg'
+                icon: '/calendario.png'
             });
         }
         console.log(`${syncedCount} tarefas sincronizadas com sucesso.`);

@@ -10,14 +10,6 @@ import PrivateRoute from './rotas/PrivateRoute.jsx'
 import { AuthProvider } from './context/AuthContext.jsx'
 import Dashboard from './telas/dashboard.jsx'
 
-/* if('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('sw.js')
-    .then(() => console.log('SW registrado'))
-    .catch(err => console.error('SW erro', err))
-  })
-} */
-
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <AuthProvider>

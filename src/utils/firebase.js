@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "firebase/auth";
-import { getFirestore, collection, setDoc, doc, getDocs, query, where, updateDoc } from "firebase/firestore";
+import { getFirestore, collection, setDoc, doc, getDocs, query, where, updateDoc, deleteDoc } from "firebase/firestore";
 import { getAnalytics, logEvent } from "firebase/analytics";
 
 const TASKS_COLLECTION = 'tasks'
@@ -42,7 +42,6 @@ export function trackTaskCompleted() {
     logEvent(analytics, 'task_completed');
 }
 
-// Funções combinadas que enviam para Analytics e Firestore
 export async function trackUserLogin(userId, method = 'email') {
     logEvent(analytics, 'login', { method });
     const { trackUserLogin: trackLoginFirestore } = await import('./analytics');
@@ -85,6 +84,11 @@ export async function addTaskToFirebase(task) {
 export async function updateTaskInFirebase(taskId, updates) {
     const ref = doc(db, TASKS_COLLECTION, taskId);
     await updateDoc(ref, updates);
+}
+
+export async function deleteTaskFromFirebase(taskId) {
+    const ref = doc(db, TASKS_COLLECTION, taskId);
+    await deleteDoc(ref);
 }
 
 export async function getTasksFromFirebase(userId){

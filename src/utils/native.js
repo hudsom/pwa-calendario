@@ -8,7 +8,9 @@ export async function shareTask(task) {
       };
       await navigator.share(shareData);
     } catch (error) {
-      console.error('Erro ao compartilhas tarefa:', error);
+      if (error.name !== 'AbortError') {
+        console.error('Erro ao compartilhar tarefa:', error);
+      }
     }
   } else {
     console.error('Web Share API não suportada neste dispositivo.');
@@ -36,38 +38,6 @@ export async function getUserLocation() {
       reject(new Error('Geolocalização não suportada'));
     }
   });
-}
-
-export function exportTasksToJson(tasks) {
-  const dataStr = JSON.stringify(tasks, null, 2);
-  const blob = new Blob([dataStr], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `tasks-export-${Date.now}.json`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-  alert('Tarefas exportadas com sucesso!');
-}
-
-export async function copyTaskToClipboard(task) {
-  const text = `Tarefa: ${task.title}\nHora: ${task.hora || ''}\nConcluída: ${task.done ? 'Sim' : 'Não'}${task.location ? `\nLocalização: ${task.location.lat}, ${task.location.lng}` : ''}`;
-  try {
-    if (navigator.clipboard) {
-      await navigator.clipboard.writeText(text);
-    }
-    const textarea = document.createElement('textarea');
-    textarea.value = text;
-    document.body.appendChild(textarea);
-    textarea.select();
-    document.execCommand('copy');
-    document.body.removeChild(textarea);
-    alert('Tarefa copiada para a área de transferência!');
-  } catch (error) {
-    console.error('Erro ao copiar tarefa:', error);
-  }
 }
 
 export function listenTaskByVoice(onResult) {

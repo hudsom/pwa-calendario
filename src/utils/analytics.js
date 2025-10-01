@@ -3,36 +3,38 @@ import { auth } from './firebase';
 
 const db = getFirestore();
 
-// Usar coleção tasks existente para analytics
 const TASKS_COLLECTION = 'tasks';
 const ANALYTICS_COLLECTION = 'user_analytics';
 
 export async function getUserAnalytics(userId) {
     try {
-        // Buscar dados das tarefas existentes
         const tasksRef = collection(db, TASKS_COLLECTION);
         const q = query(tasksRef, where('userId', '==', userId));
         const snapshot = await getDocs(q);
         const tasks = snapshot.docs.map(doc => doc.data());
-        
-        // Calcular analytics baseado nas tarefas
+
         const totalTasks = tasks.length;
         const totalCompletedTasks = tasks.filter(t => t.done).length;
         
-        // Buscar dados de login do Firestore
         try {
             const docRef = doc(db, ANALYTICS_COLLECTION, userId);
             const docSnap = await getDoc(docRef);
             
             if (docSnap.exists()) {
                 const loginData = docSnap.data();
+                const today = new Date().toDateString();
+                const loginDays = loginData.loginDays || [];
+                
+                // Sempre incluir o dia atual se não estiver na lista
+                const uniqueLoginDays = loginDays.includes(today) ? loginDays : [...loginDays, today];
+                
                 return {
                     ...loginData,
-                    totalTasks: loginData.totalTasks || totalTasks,
-                    totalCompletedTasks: loginData.totalCompletedTasks || totalCompletedTasks
+                    totalTasks: totalTasks,
+                    totalCompletedTasks: totalCompletedTasks,
+                    loginDays: uniqueLoginDays
                 };
             } else {
-                // Criar documento inicial se não existir
                 const initialData = {
                     totalLogins: 1,
                     weeklyLogins: 1,
@@ -92,15 +94,22 @@ export async function trackUserLogin(userId) {
         const docSnap = await getDoc(docRef);
         
         const currentWeekStart = getWeekStart();
+        const today = new Date().toDateString();
         
         if (docSnap.exists()) {
             const data = docSnap.data();
+            const loginDays = data.loginDays || [];
+            
             const updates = {
                 totalLogins: increment(1),
                 lastLogin: serverTimestamp()
             };
             
-            // Se é uma nova semana, resetar contador semanal
+            // Adicionar dia atual se não existir
+            if (!loginDays.includes(today)) {
+                updates.loginDays = [...loginDays, today];
+            }
+            
             if (data.weekStartDate?.toDate?.()?.getTime() !== currentWeekStart.getTime()) {
                 updates.weeklyLogins = 1;
                 updates.weekStartDate = currentWeekStart;
@@ -117,7 +126,8 @@ export async function trackUserLogin(userId) {
                 lastLogin: serverTimestamp(),
                 weeklyLogins: 1,
                 weekStartDate: currentWeekStart,
-                createdAt: serverTimestamp()
+                createdAt: serverTimestamp(),
+                loginDays: [today]
             });
         }
     } catch (error) {

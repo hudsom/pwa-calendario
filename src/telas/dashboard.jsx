@@ -18,7 +18,6 @@ async function handleShare(task) {
 
 function Dashboard() {
     const {currentUser, logout } = useAuth();
-    const [tasks, setTasks] = useState([]);
     const [completedTasks, setCompletedTasks] = useState([]);
 
     async function handleLogout() {
@@ -41,7 +40,6 @@ function Dashboard() {
         async function fetchTasks() {
             const allTasks = await getTasks();
             const userTasks = allTasks.filter(task => task.userId === currentUser.uid);
-            setTasks(userTasks);
             const filtered = userTasks.filter(t => t.done);
             setCompletedTasks(filtered);
         }
@@ -62,24 +60,7 @@ function Dashboard() {
                 <span style={{ marginRight: 15 }}>Usuário logado: {currentUser?.email}</span>
             </div>
             <h1 className="screen-title" style={{ textAlign: 'center', marginBottom: 24 }}>Dashboard</h1>
-            <p style={{ textAlign: 'center', fontWeight: 'bold' }}>Total de tarefas concluídas: {completedTasks.length}</p>
-            
-            <AnalyticsReports />
-            <ul className="task-list">
-                {completedTasks.map(t => (
-                <li className="task-card" key={t.id}>
-                    <div style={{ fontWeight: 'bold', marginBottom: 6 }}>{t.title}</div>
-                    <div style={{ color: '#888', fontSize: '0.95em' }}>{t.hora || ""}</div>
-                    <div style={{ marginTop: 8 }}>
-                        <span style={{ color: '#70ec85', fontWeight: 'bold' }}>� Concluída</span>
-                    </div>
-                    <button
-                        style={{ marginTop: 10, background: '#1976d2', color: '#fff', border: 'none', borderRadius: 4, padding: '4px 10px', cursor: 'pointer' }}
-                        onClick={() => handleShare(t)}
-                    >Compartilhar</button>
-                </li>
-                ))}
-            </ul>
+            <AnalyticsReports completedTasks={completedTasks} onShareTask={handleShare} />
 
             </div>
         </div>

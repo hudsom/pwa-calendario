@@ -1,14 +1,11 @@
 import { useEffect, useState } from 'react'
 import { v4 as uuidv4 } from "uuid"
-import { addTask, getTasks, updateTask, syncPendingTasks } from '../utils/db'
+import { addTask, getTasks, updateTask, syncPendingTasks, deleteTask } from '../utils/db'
 import { trackPageView, trackUserTaskCreated, trackUserTaskCompleted } from '../utils/firebase'
-import { getUserLocation, copyTaskToClipboard, listenTaskByVoice } from '../utils/native'
-import { getGoogleCalendarUrl } from '../utils/calendar'
+import { getUserLocation, listenTaskByVoice } from '../utils/native'
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext'
-import { syncTasks } from '../utils/sync'
 import OfflineIndicator from '../componentes/OfflineIndicator'
-import { useRegisterSW } from 'virtual:pwa-register/react'
 import '../App.css'
 
 function Home() {
@@ -16,26 +13,14 @@ function Home() {
   const [tasks, setTasks] = useState([]);
   const [title, setTitle] = useState("");
   const [hora, setHora] = useState("");
-  const [done, setDone] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [editTitle, setEditTitle] = useState("");
   const [editHora, setEditHora] = useState("");
   const [adding, setAdding] = useState(false);
   const [completingTask, setCompletingTask] = useState(null);
   const [savingEdit, setSavingEdit] = useState(false);
+  const [deletingTask, setDeletingTask] = useState(null);
 
-  const {
-    offlineReady,
-    needRefresh,
-    updateServiceWorker,
-  } = useRegisterSW({
-    onRegistered(r) {
-      console.log('SW registrado: ' + r)
-    },
-    onRegisterError(error) {
-      console.log('Erro no registro do SW', error)
-    },
-  })
 
   useEffect(() => {
     trackPageView('Home');
@@ -87,11 +72,6 @@ function Home() {
     updateAppBadge(pending);
   }, [tasks]);
 
-  async function syncAndReload() {
-    await syncTasks();
-    await loadTasks();
-  }
-
   async function handleAdd() {
     if (adding) return;
     
@@ -137,15 +117,20 @@ function Home() {
     }
   }
 
-  async function loadTasks() {
-    const userTasks = await getTasks(currentUser.uid);
-    userTasks.sort((a, b) => {
-      if (!a.hora && !b.hora) return 0;
-      if (!a.hora) return 1;
-      if (!b.hora) return -1;
-      return a.hora.localeCompare(b.hora);
-    });
-    setTasks(userTasks);
+  async function loadTasks(skipFirebaseSync = false) {
+    try {
+      const userTasks = await getTasks(currentUser.uid, skipFirebaseSync);
+      userTasks.sort((a, b) => {
+        if (!a.hora && !b.hora) return 0;
+        if (!a.hora) return 1;
+        if (!b.hora) return -1;
+        return a.hora.localeCompare(b.hora);
+      });
+      console.log('Tarefas carregadas:', userTasks.length);
+      setTasks(userTasks);
+    } catch (error) {
+      console.error('Erro ao carregar tarefas:', error);
+    }
   }
 
   function handleVoiceAdd() {
@@ -211,6 +196,34 @@ function Home() {
     setEditHora("");
   }
 
+  async function handleDeleteTask(taskId) {
+    if (deletingTask === taskId) return;
+    
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) {
+      console.error('Tarefa não encontrada:', taskId);
+      return;
+    }
+    
+    if (task.done) return;
+    
+    const confirmed = confirm(`Tem certeza que deseja excluir a tarefa "${task.title}"?`);
+    if (!confirmed) return;
+    
+    console.log('Excluindo tarefa:', taskId);
+    setDeletingTask(taskId);
+    try {
+      await deleteTask(taskId);
+      console.log('Tarefa excluída com sucesso');
+      await loadTasks(true);
+    } catch (error) {
+      console.error('Erro ao excluir tarefa:', error);
+      alert('Erro ao excluir tarefa: ' + error.message);
+    } finally {
+      setDeletingTask(null);
+    }
+  }
+
   async function toggleTaskStatus(taskId) {
     if (completingTask === taskId) return;
     
@@ -253,7 +266,7 @@ function Home() {
       </div>
       <h1 className="screen-title" style={{ textAlign: 'center', marginBottom: 24 }}>Tarefas do dia</h1>
       <div className="task-card" style={{ marginBottom: 20 }}>
-        <h3 style={{ marginBottom: 15, color: 'white' }}>Nova Tarefa</h3>
+        <h3 style={{ marginBottom: 15, color: 'white', textAlign: 'center' }}>📝 Nova Tarefa</h3>
         <input
           className="styled-input"
           value={title}
@@ -293,7 +306,7 @@ function Home() {
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
               <span style={{ fontWeight: 'bold', color: 'white', textDecoration: t.done ? 'line-through' : 'none' }}>{t.title}</span>
-              <span style={{ fontWeight: 'normal', color: 'white', textDecoration: t.done ? 'line-through' : 'none', paddingRight: '20px' }}>{t.hora || ""}</span>
+              <span style={{ fontWeight: 'normal', color: 'white', textDecoration: t.done ? 'line-through' : 'none', textAlign: 'right' }}>{t.hora || ""}</span>
             </div>
             {t.location && (
               <div style={{ color: '#2196f3', fontSize: '0.9em', marginTop: 4, display: 'flex', justifyContent: 'space-between' }}>
@@ -335,35 +348,54 @@ function Home() {
                 </div>
               </div>
             ) : (
-              <div style={{ display: 'flex', gap: '8px', marginTop: 8 }}>
+              <div style={{ display: 'flex', gap: '6px', marginTop: 8 }}>
                 <button 
                   onClick={() => startEdit(t)} 
                   disabled={t.done}
                   style={{ 
-                    fontSize: '0.9em', 
+                    fontSize: '0.8em', 
                     background: t.done ? '#ccc' : '#f59e0b', 
                     color: '#fff', 
                     border: 'none', 
                     borderRadius: 4, 
-                    padding: '6px 12px', 
+                    padding: '6px 8px', 
                     cursor: t.done ? 'not-allowed' : 'pointer', 
-                    flex: 1 
+                    flex: 1,
+                    minWidth: 0
                   }}
                 >
                   Editar
                 </button>
                 <button 
+                  onClick={() => handleDeleteTask(t.id)}
+                  disabled={t.done || deletingTask === t.id}
+                  style={{ 
+                    fontSize: '0.8em', 
+                    background: t.done || deletingTask === t.id ? '#ccc' : '#ef4444', 
+                    color: '#fff', 
+                    border: 'none', 
+                    borderRadius: 4, 
+                    padding: '6px 8px', 
+                    cursor: t.done || deletingTask === t.id ? 'not-allowed' : 'pointer', 
+                    flex: 1,
+                    minWidth: 0
+                  }}
+                >
+                  {deletingTask === t.id ? 'Excluindo...' : 'Excluir'}
+                </button>
+                <button 
                   onClick={() => toggleTaskStatus(t.id)}
                   disabled={completingTask === t.id}
                   style={{ 
-                    fontSize: '0.9em', 
+                    fontSize: '0.8em', 
                     background: completingTask === t.id ? '#6b7280' : (t.done ? '#f59e0b' : '#10b981'), 
                     color: '#fff', 
                     border: 'none', 
                     borderRadius: 4, 
-                    padding: '6px 12px', 
+                    padding: '6px 8px', 
                     cursor: completingTask === t.id ? 'not-allowed' : 'pointer', 
-                    flex: 1 
+                    flex: 1,
+                    minWidth: 0
                   }}
                 >
                   {completingTask === t.id ? 'Processando...' : (t.done ? 'Desfazer' : 'Concluir')}
