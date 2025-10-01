@@ -37,8 +37,9 @@ function Dashboard() {
         }
         async function fetchTasks() {
             const allTasks = await getTasks();
-            setTasks(allTasks);
-            const filtered = allTasks.filter(t => t.done);
+            const userTasks = allTasks.filter(task => task.userId === currentUser.uid);
+            setTasks(userTasks);
+            const filtered = userTasks.filter(t => t.done);
             setCompletedTasks(filtered);
         }
         fetchTasks();

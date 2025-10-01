@@ -40,20 +40,12 @@ function Login(){
                     emailInput.setCustomValidity("Usuário inválido");
                     emailInput.reportValidity();
                 }
-            } else if (err.code === 'auth/wrong-password') {
+            } else if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
                 setPasswordError("Senha inválida");
                 const passwordInput = document.querySelector('input[type="password"]');
                 if (passwordInput) {
                     passwordInput.setCustomValidity("Senha inválida");
                     passwordInput.reportValidity();
-                }
-            } else if (err.code === 'auth/invalid-credential') {
-                // Para invalid-credential, priorizar erro de usuário
-                setEmailError("Usuário inválido");
-                const emailInput = document.querySelector('input[type="email"]');
-                if (emailInput) {
-                    emailInput.setCustomValidity("Usuário inválido");
-                    emailInput.reportValidity();
                 }
             } else {
                 setError("Erro ao fazer login " + err.message);

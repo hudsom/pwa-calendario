@@ -106,7 +106,8 @@ function Home() {
       done,
       lastUpdated: Date.now(),
       synced: false,
-      location
+      location,
+      userId: currentUser.uid
     }
     await addTask(task);
     setTitle("")
@@ -142,13 +143,14 @@ function Home() {
 
   async function loadTasks() {
     const allTasks = await getTasks();
-    allTasks.sort((a, b) => {
+    const userTasks = allTasks.filter(task => task.userId === currentUser.uid);
+    userTasks.sort((a, b) => {
       if (!a.hora && !b.hora) return 0;
       if (!a.hora) return 1;
       if (!b.hora) return -1;
       return a.hora.localeCompare(b.hora);
     });
-    setTasks(allTasks);
+    setTasks(userTasks);
   }
 
   function handleVoiceAdd() {
@@ -287,7 +289,7 @@ function Home() {
           onChange={(e) => setHora(e.target.value)}
           style={{ marginBottom: 20, display: 'block', width: '100%', padding: '8px', fontSize: '14px', direction: 'rtl' }}
         />
-        <button onClick={handleAdd} className="styled-input" style={{ background: '#70ec85', color: '#213547', fontWeight: 'bold', width: '100%' }}>Adicionar Tarefa</button>
+        <button onClick={handleAdd} className="styled-input" style={{ background: '#10b981', color: '#fff', fontWeight: 'bold', width: '100%' }}>Adicionar Tarefa</button>
         <div style={{ marginTop: '10px' }}></div>
         <button onClick={handleVoiceAdd} className="styled-input" style={{ background: '#ff9800', color: '#fff', fontWeight: 'bold', width: '100%' }}>Adicionar Tarefa por voz</button>
       </div>
