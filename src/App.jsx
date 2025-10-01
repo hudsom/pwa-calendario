@@ -7,11 +7,10 @@ function App() {
   useEffect(() => {
     if (!currentUser) {
       window.location.href = '/login';
-      return;
     } else {
       window.location.href = '/home';
     }
-  }, [currentUser]);
+  }, []);
 
   return null;
 }

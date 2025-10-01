@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { v4 as uuidv4 } from "uuid"
 import { addTask, getTasks, updateTask, syncPendingTasks } from '../utils/db'
+import { trackPageView, trackUserTaskCreated, trackUserTaskCompleted } from '../utils/firebase'
 import { getUserLocation, copyTaskToClipboard, listenTaskByVoice } from '../utils/native'
 import { getGoogleCalendarUrl } from '../utils/calendar'
 import { Link } from 'react-router-dom';
@@ -20,6 +21,8 @@ function Home() {
   const [editTitle, setEditTitle] = useState("");
   const [editHora, setEditHora] = useState("");
   const [adding, setAdding] = useState(false);
+  const [completingTask, setCompletingTask] = useState(null);
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const {
     offlineReady,
@@ -35,6 +38,7 @@ function Home() {
   })
 
   useEffect(() => {
+    trackPageView('Home');
     if (!currentUser) {
       window.location.href = '/login';
       return;
@@ -56,7 +60,7 @@ function Home() {
       sessionStorage.clear();
       window.location.href = '/login';
     } catch (err) {
-      console.error("Erro ao fazer logout " + err);
+      console.error('Erro ao fazer logout:', err);
     }
   }
 
@@ -121,6 +125,7 @@ function Home() {
       }
       
       await addTask(task);
+      await trackUserTaskCreated(currentUser.uid);
       setTitle("");
       setHora("");
       await loadTasks();
@@ -165,6 +170,8 @@ function Home() {
   }
 
   async function saveEdit() {
+    if (savingEdit) return;
+    
     if (!editHora) {
       alert('É obrigatório informar um horário para a tarefa!');
       return;
@@ -183,11 +190,19 @@ function Home() {
       return;
     }
     
-    await updateTask(editingId, { title: editTitle, hora: editHora });
-    await loadTasks();
-    setEditingId(null);
-    setEditTitle("");
-    setEditHora("");
+    setSavingEdit(true);
+    try {
+      await updateTask(editingId, { title: editTitle, hora: editHora });
+      await loadTasks();
+      setEditingId(null);
+      setEditTitle("");
+      setEditHora("");
+    } catch (error) {
+      console.error('Erro ao salvar edição:', error);
+      alert('Erro ao salvar tarefa');
+    } finally {
+      setSavingEdit(false);
+    }
   }
 
   function cancelEdit() {
@@ -197,6 +212,8 @@ function Home() {
   }
 
   async function toggleTaskStatus(taskId) {
+    if (completingTask === taskId) return;
+    
     const task = tasks.find(t => t.id === taskId);
     
     if (task.done && task.hora) {
@@ -209,8 +226,16 @@ function Home() {
       }
     }
     
-    await updateTask(taskId, { done: !task.done });
-    await loadTasks();
+    setCompletingTask(taskId);
+    try {
+      await updateTask(taskId, { done: !task.done });
+      if (!task.done) await trackUserTaskCompleted(currentUser.uid);
+      await loadTasks();
+    } catch (error) {
+      console.error('Erro ao atualizar tarefa:', error);
+    } finally {
+      setCompletingTask(null);
+    }
   }
   
   return (
@@ -226,7 +251,7 @@ function Home() {
       <div style={{ marginBottom: 16, textAlign: 'center' }}>
         <span>Usuário logado: {currentUser?.email}</span>
       </div>
-      <h1 style={{ textAlign: 'center', marginBottom: 24 }}>Minhas tarefas</h1>
+      <h1 className="screen-title" style={{ textAlign: 'center', marginBottom: 24 }}>Tarefas do dia</h1>
       <div className="task-card" style={{ marginBottom: 20 }}>
         <h3 style={{ marginBottom: 15, color: 'white' }}>Nova Tarefa</h3>
         <input
@@ -290,7 +315,22 @@ function Home() {
                   style={{ width: '100%', padding: '8px', marginBottom: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
                 />
                 <div style={{ display: 'flex', gap: '8px' }}>
-                  <button onClick={saveEdit} style={{ fontSize: '0.9em', background: '#10b981', color: '#fff', border: 'none', borderRadius: 4, padding: '6px 12px', cursor: 'pointer', flex: 1 }}>Salvar</button>
+                  <button 
+                    onClick={saveEdit} 
+                    disabled={savingEdit}
+                    style={{ 
+                      fontSize: '0.9em', 
+                      background: savingEdit ? '#6b7280' : '#10b981', 
+                      color: '#fff', 
+                      border: 'none', 
+                      borderRadius: 4, 
+                      padding: '6px 12px', 
+                      cursor: savingEdit ? 'not-allowed' : 'pointer', 
+                      flex: 1 
+                    }}
+                  >
+                    {savingEdit ? 'Salvando...' : 'Salvar'}
+                  </button>
                   <button onClick={cancelEdit} style={{ fontSize: '0.9em', background: '#ef4444', color: '#fff', border: 'none', borderRadius: 4, padding: '6px 12px', cursor: 'pointer', flex: 1 }}>Cancelar</button>
                 </div>
               </div>
@@ -314,9 +354,19 @@ function Home() {
                 </button>
                 <button 
                   onClick={() => toggleTaskStatus(t.id)}
-                  style={{ fontSize: '0.9em', background: t.done ? '#f59e0b' : '#10b981', color: '#fff', border: 'none', borderRadius: 4, padding: '6px 12px', cursor: 'pointer', flex: 1 }}
+                  disabled={completingTask === t.id}
+                  style={{ 
+                    fontSize: '0.9em', 
+                    background: completingTask === t.id ? '#6b7280' : (t.done ? '#f59e0b' : '#10b981'), 
+                    color: '#fff', 
+                    border: 'none', 
+                    borderRadius: 4, 
+                    padding: '6px 12px', 
+                    cursor: completingTask === t.id ? 'not-allowed' : 'pointer', 
+                    flex: 1 
+                  }}
                 >
-                  {t.done ? 'Desfazer' : 'Concluir'}
+                  {completingTask === t.id ? 'Processando...' : (t.done ? 'Desfazer' : 'Concluir')}
                 </button>
               </div>
             )}

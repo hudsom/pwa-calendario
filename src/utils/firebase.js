@@ -1,6 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "firebase/auth";
 import { getFirestore, collection, setDoc, doc, getDocs, query, where, updateDoc } from "firebase/firestore";
+import { getAnalytics, logEvent } from "firebase/analytics";
 
 const TASKS_COLLECTION = 'tasks'
 
@@ -16,8 +17,53 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+const analytics = getAnalytics(app);
 
 export const auth = getAuth(app);
+
+// Analytics functions
+export function trackEvent(eventName, parameters = {}) {
+    logEvent(analytics, eventName, parameters);
+}
+
+export function trackLogin(method = 'email') {
+    logEvent(analytics, 'login', { method });
+}
+
+export function trackSignUp(method = 'email') {
+    logEvent(analytics, 'sign_up', { method });
+}
+
+export function trackTaskCreated() {
+    logEvent(analytics, 'task_created');
+}
+
+export function trackTaskCompleted() {
+    logEvent(analytics, 'task_completed');
+}
+
+// Funções combinadas que enviam para Analytics e Firestore
+export async function trackUserLogin(userId, method = 'email') {
+    logEvent(analytics, 'login', { method });
+    const { trackUserLogin: trackLoginFirestore } = await import('./analytics');
+    await trackLoginFirestore(userId);
+}
+
+export async function trackUserTaskCreated(userId) {
+    logEvent(analytics, 'task_created');
+    const { trackUserTaskCreated: trackTaskFirestore } = await import('./analytics');
+    await trackTaskFirestore(userId);
+}
+
+export async function trackUserTaskCompleted(userId) {
+    logEvent(analytics, 'task_completed');
+    const { trackUserTaskCompleted: trackCompletedFirestore } = await import('./analytics');
+    await trackCompletedFirestore(userId);
+}
+
+export function trackPageView(pageName) {
+    logEvent(analytics, 'page_view', { page_title: pageName });
+}
 
 export function login(email, senha){
     return signInWithEmailAndPassword(auth, email, senha);

@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { register } from '../utils/firebase'
+import { useState, useEffect } from 'react'
+import { register, trackSignUp, trackPageView } from '../utils/firebase'
 import { Link } from 'react-router-dom'
 
 function Cadastro(){
@@ -8,6 +8,10 @@ function Cadastro(){
     const [confirmPassword, setConfirmPassword] = useState("");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
+
+    useEffect(() => {
+        trackPageView('Cadastro');
+    }, []);
 
     async function handleRegister(e) {
         e.preventDefault();
@@ -27,6 +31,7 @@ function Cadastro(){
 
         try {
             await register(email, password)
+            trackSignUp('email');
             window.location.href = "/";
         } catch (err) {
             if (err.code === 'auth/email-already-in-use') {

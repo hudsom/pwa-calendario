@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { login } from '../utils/firebase'
-import { Link } from "react-router-dom"
+import { login, trackUserLogin, trackPageView } from '../utils/firebase'
+import { Link, useNavigate } from "react-router-dom"
 import OfflineIndicator from "../componentes/OfflineIndicator"
 import { useOnlineStatus } from '../hooks/useOnlineStatus'
 import { useAuth } from '../context/AuthContext'
@@ -14,12 +14,14 @@ function Login(){
     const [passwordError, setPasswordError] = useState("");
     const { isOnline } = useOnlineStatus();
     const { currentUser } = useAuth();
+    const navigate = useNavigate();
 
     useEffect(() => {
+        trackPageView('Login');
         if (currentUser) {
-            window.location.href = '/';
+            navigate('/home');
         }
-    }, [currentUser]);
+    }, [currentUser, navigate]);
 
     async function handleLogin(e) {
         e.preventDefault();
@@ -29,8 +31,9 @@ function Login(){
         setPasswordError("");
 
         try {
-            await login(email, password);
-            window.location.href = '/';
+            const userCredential = await login(email, password);
+            await trackUserLogin(userCredential.user.uid, 'email');
+            navigate('/home');
 
         } catch (err) {
             console.log('Erro de login:', err.code, err.message);

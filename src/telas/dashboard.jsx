@@ -4,6 +4,8 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { shareTask } from "../utils/native"
 import OfflineIndicator from "../componentes/OfflineIndicator";
+import { trackPageView } from "../utils/firebase";
+import AnalyticsReports from "../componentes/AnalyticsReports";
 
 
 async function handleShare(task) {
@@ -31,6 +33,7 @@ function Dashboard() {
     }
     
     useEffect(() => {
+        trackPageView('Dashboard');
         if (!currentUser) {
             window.location.href = '/login';
             return;
@@ -58,8 +61,10 @@ function Dashboard() {
             <div style={{ marginBottom: 16, textAlign: 'right' }}>
                 <span style={{ marginRight: 15 }}>Usuário logado: {currentUser?.email}</span>
             </div>
-            <h1 style={{ textAlign: 'center', marginBottom: 24 }}>Dashboard</h1>
+            <h1 className="screen-title" style={{ textAlign: 'center', marginBottom: 24 }}>Dashboard</h1>
             <p style={{ textAlign: 'center', fontWeight: 'bold' }}>Total de tarefas concluídas: {completedTasks.length}</p>
+            
+            <AnalyticsReports />
             <ul className="task-list">
                 {completedTasks.map(t => (
                 <li className="task-card" key={t.id}>
