@@ -255,52 +255,55 @@ function Home() {
     <div className="main-container">
       <div className="screen-container">
       <OfflineIndicator />
-      <div style={{ display: 'flex', gap: '8px', marginBottom: 16 }}>
-        <Link to="/dashboard" style={{ flex: 1 }}>
-          <button style={{ background: '#1976d2', color: 'white', border: 'none', borderRadius: '8px', padding: '8px 16px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', textDecoration: 'none', width: '100%' }}>Ir para o dashboard</button>
+      <nav style={{ padding: '12px', background: 'rgba(50, 60, 80, 0.95)' }}>
+        <Link to="/dashboard" className="nav-link" style={{ padding: '10px 16px', fontSize: '13px', background: 'rgba(102, 126, 234, 0.8)', color: 'white' }}>
+          Ir para Dashboard
         </Link>
-        <button onClick={handleLogout} style={{ background: '#ef4444', color: 'white', border: 'none', borderRadius: '8px', padding: '8px 16px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>Logout</button>
+        <button onClick={handleLogout} className="logout" style={{ padding: '10px 16px', fontSize: '13px' }}>
+          Logout
+        </button>
+      </nav>
+      <div className="screen-header">
+        <h1 className="screen-title">Tarefas do dia</h1>
+        <div className="screen-subtitle">Usuário logado: {currentUser?.email}</div>
       </div>
-      <div style={{ marginBottom: 16, textAlign: 'center' }}>
-        <span>Usuário logado: {currentUser?.email}</span>
-      </div>
-      <h1 className="screen-title" style={{ textAlign: 'center', marginBottom: 24 }}>Tarefas do dia</h1>
-      <div className="task-card" style={{ marginBottom: 20 }}>
-        <h3 style={{ marginBottom: 15, color: 'white', textAlign: 'center' }}>📝 Nova Tarefa</h3>
-        <input
-          className="styled-input"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="Título da tarefa"
-          style={{ marginBottom: 15, display: 'block', width: '100%', padding: '8px', fontSize: '14px' }}
-        />
-        <input
-          className="styled-input"
-          type="time"
-          value={hora}
-          onChange={(e) => setHora(e.target.value)}
-          style={{ marginBottom: 20, display: 'block', width: '100%', padding: '8px', fontSize: '14px', direction: 'rtl' }}
-        />
+      <div className="task-card" style={{ marginBottom: 20, background: 'rgba(50, 60, 80, 0.95)' }}>
+        <div className="form-container">
+          <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#f8fafc', marginBottom: '24px', textAlign: 'center' }}>📝 Nova Tarefa</h3>
+        <div className="form-group">
+          <input
+            className="form-input"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Título da tarefa"
+          />
+        </div>
+        <div className="form-group">
+          <input
+            className="form-input"
+            type="time"
+            value={hora}
+            onChange={(e) => setHora(e.target.value)}
+            style={{ direction: 'rtl' }}
+          />
+        </div>
         <button 
           onClick={handleAdd} 
           disabled={adding}
-          className="styled-input" 
+          className="form-button"
           style={{ 
-            background: adding ? '#6b7280' : '#10b981', 
-            color: '#fff', 
-            fontWeight: 'bold', 
-            width: '100%',
-            cursor: adding ? 'not-allowed' : 'pointer'
+            background: adding ? '#6b7280' : undefined,
+            cursor: adding ? 'not-allowed' : undefined
           }}
         >
           {adding ? 'Adicionando...' : 'Adicionar Tarefa'}
         </button>
-        <div style={{ marginTop: '10px' }}></div>
-        <button onClick={handleVoiceAdd} className="styled-input" style={{ background: '#ff9800', color: '#fff', fontWeight: 'bold', width: '100%' }}>Adicionar Tarefa por voz</button>
+        <button onClick={handleVoiceAdd} className="form-button" style={{ background: 'linear-gradient(135deg, #a5b4fc 0%, #c4b5fd 100%)', marginTop: '12px' }}>Adicionar Tarefa por voz</button>
+        </div>
       </div>
       <ul className="task-list" style={{ listStyle: 'none', padding: 0 }}>
         {tasks.map(t =>(
-          <li className="task-card" key={t.id} style={{ position: 'relative', backgroundColor: t.done ? 'rgba(200, 210, 220, 0.8)' : undefined }}>
+          <li className="task-card" key={t.id} style={{ position: 'relative', background: t.done ? 'rgba(40, 50, 70, 0.9)' : 'rgba(50, 60, 80, 0.95)' }}>
             <div style={{ fontSize: '11px', color: t.synced ? '#10b981' : '#ffd600', textAlign: 'right', marginBottom: '4px' }}>
               {t.synced ? 'Sincronizada' : 'Não sincronizada'}
             </div>
@@ -315,51 +318,43 @@ function Home() {
               </div>
             )}
             {editingId === t.id ? (
-              <div>
+              <div className="edit-form">
                 <input
                   value={editTitle}
                   onChange={(e) => setEditTitle(e.target.value)}
-                  style={{ width: '100%', padding: '8px', marginBottom: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
+                  className="form-input"
                 />
                 <input
                   type="time"
                   value={editHora}
                   onChange={(e) => setEditHora(e.target.value)}
-                  style={{ width: '100%', padding: '8px', marginBottom: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
+                  className="form-input"
+                  style={{ direction: 'rtl' }}
                 />
-                <div style={{ display: 'flex', gap: '8px' }}>
+                <div className="edit-buttons">
                   <button 
                     onClick={saveEdit} 
                     disabled={savingEdit}
+                    className="btn-save"
                     style={{ 
-                      fontSize: '0.9em', 
-                      background: savingEdit ? '#6b7280' : '#10b981', 
-                      color: '#fff', 
-                      border: 'none', 
-                      borderRadius: 4, 
-                      padding: '6px 12px', 
-                      cursor: savingEdit ? 'not-allowed' : 'pointer', 
-                      flex: 1 
+                      background: savingEdit ? '#6b7280' : undefined,
+                      cursor: savingEdit ? 'not-allowed' : undefined
                     }}
                   >
                     {savingEdit ? 'Salvando...' : 'Salvar'}
                   </button>
-                  <button onClick={cancelEdit} style={{ fontSize: '0.9em', background: '#ef4444', color: '#fff', border: 'none', borderRadius: 4, padding: '6px 12px', cursor: 'pointer', flex: 1 }}>Cancelar</button>
+                  <button onClick={cancelEdit} className="btn-cancel">Cancelar</button>
                 </div>
               </div>
             ) : (
-              <div style={{ display: 'flex', gap: '6px', marginTop: 8 }}>
+              <div className="task-actions">
                 <button 
                   onClick={() => startEdit(t)} 
                   disabled={t.done}
+                  className="btn-small btn-edit"
                   style={{ 
-                    fontSize: '0.8em', 
-                    background: t.done ? '#ccc' : '#f59e0b', 
-                    color: '#fff', 
-                    border: 'none', 
-                    borderRadius: 4, 
-                    padding: '6px 8px', 
-                    cursor: t.done ? 'not-allowed' : 'pointer', 
+                    background: t.done ? '#ccc' : undefined,
+                    cursor: t.done ? 'not-allowed' : undefined,
                     flex: 1,
                     minWidth: 0
                   }}
@@ -369,14 +364,11 @@ function Home() {
                 <button 
                   onClick={() => handleDeleteTask(t.id)}
                   disabled={t.done || deletingTask === t.id}
+                  className="btn-small"
                   style={{ 
-                    fontSize: '0.8em', 
-                    background: t.done || deletingTask === t.id ? '#ccc' : '#ef4444', 
-                    color: '#fff', 
-                    border: 'none', 
-                    borderRadius: 4, 
-                    padding: '6px 8px', 
-                    cursor: t.done || deletingTask === t.id ? 'not-allowed' : 'pointer', 
+                    background: t.done || deletingTask === t.id ? '#ccc' : '#ef4444',
+                    color: 'white',
+                    cursor: t.done || deletingTask === t.id ? 'not-allowed' : undefined,
                     flex: 1,
                     minWidth: 0
                   }}
@@ -386,14 +378,10 @@ function Home() {
                 <button 
                   onClick={() => toggleTaskStatus(t.id)}
                   disabled={completingTask === t.id}
+                  className={`btn-small ${t.done ? 'btn-undo' : 'btn-complete'}`}
                   style={{ 
-                    fontSize: '0.8em', 
-                    background: completingTask === t.id ? '#6b7280' : (t.done ? '#f59e0b' : '#10b981'), 
-                    color: '#fff', 
-                    border: 'none', 
-                    borderRadius: 4, 
-                    padding: '6px 8px', 
-                    cursor: completingTask === t.id ? 'not-allowed' : 'pointer', 
+                    background: completingTask === t.id ? '#6b7280' : undefined,
+                    cursor: completingTask === t.id ? 'not-allowed' : undefined,
                     flex: 1,
                     minWidth: 0
                   }}

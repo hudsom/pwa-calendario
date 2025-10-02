@@ -50,16 +50,18 @@ function Dashboard() {
         <div className="main-container">
             <OfflineIndicator />
             <div className="screen-container">
-            <div style={{ display: 'flex', gap: '8px', marginBottom: 16 }}>
-                <Link to="/home" style={{ flex: 1 }}>
-                    <button style={{ background: '#1976d2', color: 'white', border: 'none', borderRadius: '8px', padding: '8px 16px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', textDecoration: 'none', width: '100%' }}>Voltar para Home</button>
+            <nav style={{ padding: '12px', background: 'rgba(50, 60, 80, 0.95)' }}>
+                <Link to="/home" className="nav-link" style={{ padding: '10px 16px', fontSize: '13px', background: 'rgba(102, 126, 234, 0.8)', color: 'white' }}>
+                    Voltar para Home
                 </Link>
-                <button onClick={handleLogout} style={{ background: '#ef4444', color: 'white', border: 'none', borderRadius: '8px', padding: '8px 16px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>Logout</button>
+                <button onClick={handleLogout} className="logout" style={{ padding: '10px 16px', fontSize: '13px' }}>
+                    Logout
+                </button>
+            </nav>
+            <div className="screen-header">
+                <h1 className="screen-title">Dashboard</h1>
+                <div className="screen-subtitle">Usuário logado: {currentUser?.email}</div>
             </div>
-            <div style={{ marginBottom: 16, textAlign: 'right' }}>
-                <span style={{ marginRight: 15 }}>Usuário logado: {currentUser?.email}</span>
-            </div>
-            <h1 className="screen-title" style={{ textAlign: 'center', marginBottom: 24 }}>Dashboard</h1>
             <AnalyticsReports completedTasks={completedTasks} onShareTask={handleShare} />
 
             </div>
